@@ -20,6 +20,7 @@ struct CalendarView: View {
     @State private var selectedDate: Date
     @State private var currentMonth: Date
     @State private var showingItineraryItemSheet = false
+    @State private var showingEditTripSheet = false // New state for edit trip sheet
     @State private var refreshID = UUID() // Force view refresh when needed
     
     // Create a DateFormatter for month and year
@@ -54,6 +55,26 @@ struct CalendarView: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // Trip title header with edit button
+            HStack {
+                Text(trip.title ?? "Trip Calendar")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                // Edit trip button
+                Button(action: {
+                    showingEditTripSheet = true
+                }) {
+                    Image(systemName: "pencil.circle")
+                        .font(.title3)
+                        .foregroundColor(.teal)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 10)
+            
             // Month selector
             HStack {
                 Button(action: {
@@ -241,6 +262,19 @@ struct CalendarView: View {
         // Also refresh when selected date changes directly
         .onChange(of: selectedDate) { oldValue, newValue in
             refreshItems()
+        }
+        // Add sheet for editing trip details
+        .sheet(isPresented: $showingEditTripSheet) {
+            EditTripView(trip: trip)
+                .environmentObject(appViewModel)
+                .environment(\.managedObjectContext, viewContext)
+        }
+        // Refresh when edit sheet is dismissed
+        .onChange(of: showingEditTripSheet) { oldValue, newValue in
+            if !newValue {
+                // When the edit sheet is dismissed, refresh to show updated trip details
+                refreshItems()
+            }
         }
     }
     
