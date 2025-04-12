@@ -205,17 +205,32 @@ class AppViewModel: ObservableObject {
     ///   - context: The managed object context
     /// - Returns: Array of itinerary items
     func itineraryItems(for date: Date, in trip: Trip, context: NSManagedObjectContext) -> [ItineraryItem] {
-        guard let items = trip.itineraryItems?.allObjects as? [ItineraryItem] else {
-            return []
-        }
+        // Create a fetch request to get fresh data
+        let fetchRequest: NSFetchRequest<ItineraryItem> = ItineraryItem.fetchRequest()
         
+        // Set predicate to filter by trip and date
         let calendar = Calendar.current
-        return items.filter { item in
-            calendar.isDate(calendar.startOfDay(for: item.startTime!), 
-                           equalTo: calendar.startOfDay(for: date), 
-                           toGranularity: .day)
-        }.sorted { item1, item2 in
-            item1.startTime! < item2.startTime!
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        
+        // Trip predicate
+        let tripPredicate = NSPredicate(format: "trip == %@", trip)
+        
+        // Date predicate - find all items where the start time is on the selected date
+        let datePredicate = NSPredicate(format: "startTime >= %@ AND startTime < %@", startOfDay as NSDate, endOfDay as NSDate)
+        
+        // Combine predicates
+        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [tripPredicate, datePredicate])
+        
+        // Sort by start time
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "startTime", ascending: true)]
+        
+        do {
+            // Execute fetch request
+            return try context.fetch(fetchRequest)
+        } catch {
+            print("Error fetching itinerary items: \(error)")
+            return []
         }
     }
 } 

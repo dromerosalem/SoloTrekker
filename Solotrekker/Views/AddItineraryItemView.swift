@@ -12,6 +12,7 @@ struct AddItineraryItemView: View {
     // Environment for dismissing the sheet
     @Environment(\.presentationMode) var presentationMode
     @Environment(\.managedObjectContext) var viewContext
+    @EnvironmentObject var appViewModel: AppViewModel
     
     // Trip and selected date
     let trip: Trip
@@ -24,6 +25,7 @@ struct AddItineraryItemView: View {
     @State private var startTime: Date
     @State private var endTime: Date
     @State private var itemType = "excursion"
+    @State private var showTimeError = false // Track time validation errors
     
     // Available item types
     let itemTypes = [
@@ -36,7 +38,25 @@ struct AddItineraryItemView: View {
     
     // Input validation
     private var isFormValid: Bool {
-        !title.isEmpty && endTime >= startTime
+        return !title.isEmpty && isTimeValid
+    }
+    
+    // Check if end time is after start time
+    private var isTimeValid: Bool {
+        return endTime > startTime
+    }
+    
+    // Format times for error message
+    private var formattedStartTime: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: startTime)
+    }
+    
+    private var formattedEndTime: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: endTime)
     }
     
     // Initialize with trip and date
@@ -82,8 +102,25 @@ struct AddItineraryItemView: View {
                 // Time section
                 Section(header: Text("Time")) {
                     DatePicker("Start Time", selection: $startTime, displayedComponents: [.hourAndMinute])
+                        .onChange(of: startTime) { oldValue, newValue in
+                            // If end time is now before start time, update it
+                            if endTime <= newValue {
+                                // Set end time to 1 hour after new start time
+                                endTime = newValue.addingTimeInterval(3600)
+                            }
+                            validateTimes()
+                        }
                     
                     DatePicker("End Time", selection: $endTime, displayedComponents: [.hourAndMinute])
+                        .onChange(of: endTime) { oldValue, newValue in
+                            validateTimes()
+                        }
+                    
+                    if showTimeError {
+                        Text("End time must be after start time")
+                            .foregroundColor(.red)
+                            .font(.caption)
+                    }
                 }
             }
             .navigationTitle("Add Activity")
@@ -99,8 +136,19 @@ struct AddItineraryItemView: View {
         }
     }
     
+    /// Validate time inputs
+    private func validateTimes() {
+        showTimeError = !isTimeValid
+    }
+    
     /// Save the new itinerary item to CoreData
     private func saveItem() {
+        // Ensure times are valid before saving
+        guard isTimeValid else {
+            showTimeError = true
+            return
+        }
+        
         // Create a new itinerary item entity
         let newItem = ItineraryItem(context: viewContext)
         newItem.id = UUID()

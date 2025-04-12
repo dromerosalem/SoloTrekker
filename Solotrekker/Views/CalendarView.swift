@@ -20,6 +20,7 @@ struct CalendarView: View {
     @State private var selectedDate: Date
     @State private var currentMonth: Date
     @State private var showingItineraryItemSheet = false
+    @State private var refreshID = UUID() // Force view refresh when needed
     
     // Create a DateFormatter for month and year
     private let monthYearFormatter: DateFormatter = {
@@ -114,8 +115,13 @@ struct CalendarView: View {
                         )
                         .id("day-\(day.index)") // Use the explicit index
                         .onTapGesture {
+                            // Update both the local and app view model selected dates
+                            // This ensures proper synchronization between the calendar view and app state
                             selectedDate = date
                             appViewModel.selectedDate = date
+                            
+                            // Force refresh to ensure UI updates properly
+                            refreshItems()
                         }
                     } else {
                         // Empty cell for days not in this month
@@ -180,10 +186,10 @@ struct CalendarView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 30)
                     } else {
-                        // Use explicit IDs for itinerary items
+                        // Use explicit IDs for itinerary items and include refreshID to force updates
                         ForEach(items, id: \.id) { item in
                             ItineraryItemRow(item: item)
-                                .id(item.id) // Explicit ID
+                                .id("\(item.id?.uuidString ?? "")-\(refreshID)")
                                 .padding(.vertical, 5)
                                 .padding(.horizontal)
                         }
@@ -193,6 +199,14 @@ struct CalendarView: View {
         }
         .sheet(isPresented: $showingItineraryItemSheet) {
             AddItineraryItemView(trip: trip, selectedDate: selectedDate)
+                .environmentObject(appViewModel)
+                .environment(\.managedObjectContext, viewContext)
+        }
+        .onChange(of: showingItineraryItemSheet) { oldValue, newValue in
+            // When sheet is dismissed, refresh items
+            if !newValue {
+                refreshItems()
+            }
         }
         // Sync with appViewModel.selectedDate when it changes
         .onAppear {
@@ -206,18 +220,27 @@ struct CalendarView: View {
                     currentMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: appDate)) ?? currentMonth
                 }
             }
+            
+            // Always refresh items when view appears
+            refreshItems()
         }
-        // Listen for changes to appViewModel.selectedDate
-        .onChange(of: appViewModel.selectedDate) { _, newDate in
-            if let newDate = newDate, !Calendar.current.isDate(selectedDate, inSameDayAs: newDate) {
-                selectedDate = newDate
+        .onChange(of: appViewModel.selectedDate) { oldValue, newValue in
+            if let newValue = newValue, !Calendar.current.isDate(selectedDate, inSameDayAs: newValue) {
+                selectedDate = newValue
                 
                 // Update the current month if the new date is in a different month
                 let calendar = Calendar.current
-                if !calendar.isDate(currentMonth, equalTo: newDate, toGranularity: .month) {
-                    currentMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: newDate)) ?? currentMonth
+                if !calendar.isDate(currentMonth, equalTo: newValue, toGranularity: .month) {
+                    currentMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: newValue)) ?? currentMonth
                 }
+                
+                // Refresh items when date changes
+                refreshItems()
             }
+        }
+        // Also refresh when selected date changes directly
+        .onChange(of: selectedDate) { oldValue, newValue in
+            refreshItems()
         }
     }
     
@@ -225,7 +248,17 @@ struct CalendarView: View {
     /// - Parameter date: The date to check
     /// - Returns: True if there are items for this date
     private func hasItineraryItems(for date: Date) -> Bool {
-        !appViewModel.itineraryItems(for: date, in: trip, context: viewContext).isEmpty
+        // Use the updated function from AppViewModel with our local viewContext
+        let items = appViewModel.itineraryItems(for: date, in: trip, context: viewContext)
+        return !items.isEmpty
+    }
+    
+    /// Force a refresh of the itinerary items
+    private func refreshItems() {
+        // Generate a new UUID to force the views to update
+        DispatchQueue.main.async {
+            self.refreshID = UUID()
+        }
     }
     
     /// Get the days in the month for display in the calendar
