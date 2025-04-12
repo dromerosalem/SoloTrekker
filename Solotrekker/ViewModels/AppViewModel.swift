@@ -24,6 +24,17 @@ class AppViewModel: ObservableObject {
     @Published var currency: String = UserDefaults.standard.string(forKey: "preferredCurrency") ?? "USD"
     @Published var colorScheme: ColorScheme = UserDefaults.standard.bool(forKey: "useDarkMode") ? .dark : .light
     
+    // Cached formatters for better performance
+    private let dateFormatters: [DateFormatter.Style: DateFormatter] = {
+        var formatters = [DateFormatter.Style: DateFormatter]()
+        for style in [DateFormatter.Style.short, .medium, .long, .full] {
+            let formatter = DateFormatter()
+            formatter.dateStyle = style
+            formatters[style] = formatter
+        }
+        return formatters
+    }()
+    
     // MARK: - App Navigation Methods
     
     /// Navigate to a specific trip
@@ -94,10 +105,15 @@ class AppViewModel: ObservableObject {
     /// - Parameter hex: Hex color code (e.g., "#FF0000")
     /// - Returns: SwiftUI Color
     func color(from hex: String?) -> Color {
-        guard let hex = hex else { return .blue }
+        guard let hex = hex, !hex.isEmpty else { return .blue }
         
         var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+        
+        // Ensure we have a valid hex string
+        guard hexSanitized.count == 6, hexSanitized.rangeOfCharacter(from: CharacterSet(charactersIn: "0123456789ABCDEFabcdef").inverted) == nil else {
+            return .blue
+        }
         
         var rgb: UInt64 = 0
         
@@ -105,9 +121,10 @@ class AppViewModel: ObservableObject {
             return .blue
         }
         
-        let red = Double((rgb & 0xFF0000) >> 16) / 255.0
-        let green = Double((rgb & 0x00FF00) >> 8) / 255.0
-        let blue = Double(rgb & 0x0000FF) / 255.0
+        // Calculate color components with clamping to avoid NaN
+        let red = min(1.0, max(0.0, Double((rgb & 0xFF0000) >> 16) / 255.0))
+        let green = min(1.0, max(0.0, Double((rgb & 0x00FF00) >> 8) / 255.0))
+        let blue = min(1.0, max(0.0, Double(rgb & 0x0000FF) / 255.0))
         
         return Color(red: red, green: green, blue: blue)
     }
@@ -131,9 +148,14 @@ class AppViewModel: ObservableObject {
     ///   - style: Date format style
     /// - Returns: Formatted string
     func formatDate(_ date: Date, style: DateFormatter.Style = .medium) -> String {
+        // Use cached formatter for performance
+        if let formatter = dateFormatters[style] {
+            return formatter.string(from: date)
+        }
+        
+        // Fallback if no cached formatter exists
         let formatter = DateFormatter()
         formatter.dateStyle = style
-        
         return formatter.string(from: date)
     }
     
@@ -141,9 +163,9 @@ class AppViewModel: ObservableObject {
     /// - Parameter date: The date
     /// - Returns: Day number as string
     func dayOfMonth(from date: Date) -> String {
+        // Use static formatter for thread safety and performance
         let formatter = DateFormatter()
         formatter.dateFormat = "d"
-        
         return formatter.string(from: date)
     }
     
@@ -151,9 +173,9 @@ class AppViewModel: ObservableObject {
     /// - Parameter date: The date
     /// - Returns: "Month Year" string
     func monthAndYear(from date: Date) -> String {
+        // Use static formatter for thread safety and performance
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM yyyy"
-        
         return formatter.string(from: date)
     }
     

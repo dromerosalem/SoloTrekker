@@ -206,7 +206,8 @@ struct TripCard: View {
     // Trip dates information
     func tripDateInfo(startDate: Date, endDate: Date) -> some View {
         let calendar = Calendar.current
-        let numberOfDays = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0
+        // Ensure we have a valid date difference calculation
+        let numberOfDays = max(0, calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0)
         
         return VStack(alignment: .trailing, spacing: 2) {
             Text("\(numberOfDays + 1) days")
@@ -248,9 +249,9 @@ struct TripCard: View {
                 
                 Spacer()
                 
-                // Budget info if available
+                // Budget info if available - ensure non-negative values
                 if trip.budget > 0 {
-                    Text(appViewModel.formatCurrency(trip.budget, currencyCode: trip.currency ?? "USD"))
+                    Text(appViewModel.formatCurrency(max(0, trip.budget), currencyCode: trip.currency ?? "USD"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -269,8 +270,14 @@ struct TripCard: View {
         }
         
         let totalDuration = endDate.timeIntervalSince(startDate)
+        // Guard against zero or negative duration to prevent NaN or invalid values
+        guard totalDuration > 0 else { return 0 }
+        
         let elapsedDuration = currentDate.timeIntervalSince(startDate)
-        return elapsedDuration / totalDuration
+        let progress = elapsedDuration / totalDuration
+        
+        // Ensure the progress value is between 0 and 1 to prevent NaN
+        return max(0, min(1, progress))
     }
     
     // Get the trip status based on dates
