@@ -102,8 +102,9 @@ struct CalendarView: View {
             let days = daysInMonth(for: currentMonth)
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 5) {
-                ForEach(days, id: \.self) { date in
-                    if let date = date {
+                // Use explicit indices from our daysInMonth structure
+                ForEach(days, id: \.index) { day in
+                    if let date = day.date {
                         DayCell(
                             date: date,
                             isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate),
@@ -111,6 +112,7 @@ struct CalendarView: View {
                             hasItems: hasItineraryItems(for: date),
                             tripColor: appViewModel.color(from: trip.colorHex)
                         )
+                        .id("day-\(day.index)") // Use the explicit index
                         .onTapGesture {
                             selectedDate = date
                             appViewModel.selectedDate = date
@@ -120,6 +122,7 @@ struct CalendarView: View {
                         Rectangle()
                             .fill(Color.clear)
                             .frame(height: 50)
+                            .id("empty-\(day.index)") // Use the explicit index
                     }
                 }
             }
@@ -177,8 +180,10 @@ struct CalendarView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 30)
                     } else {
-                        ForEach(items) { item in
+                        // Use explicit IDs for itinerary items
+                        ForEach(items, id: \.id) { item in
                             ItineraryItemRow(item: item)
+                                .id(item.id) // Explicit ID
                                 .padding(.vertical, 5)
                                 .padding(.horizontal)
                         }
@@ -188,6 +193,31 @@ struct CalendarView: View {
         }
         .sheet(isPresented: $showingItineraryItemSheet) {
             AddItineraryItemView(trip: trip, selectedDate: selectedDate)
+        }
+        // Sync with appViewModel.selectedDate when it changes
+        .onAppear {
+            // Update our local selectedDate if appViewModel has a different date
+            if let appDate = appViewModel.selectedDate, !Calendar.current.isDate(appDate, inSameDayAs: selectedDate) {
+                selectedDate = appDate
+                
+                // Also update currentMonth to show the correct month
+                let calendar = Calendar.current
+                if !calendar.isDate(currentMonth, equalTo: appDate, toGranularity: .month) {
+                    currentMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: appDate)) ?? currentMonth
+                }
+            }
+        }
+        // Listen for changes to appViewModel.selectedDate
+        .onChange(of: appViewModel.selectedDate) { _, newDate in
+            if let newDate = newDate, !Calendar.current.isDate(selectedDate, inSameDayAs: newDate) {
+                selectedDate = newDate
+                
+                // Update the current month if the new date is in a different month
+                let calendar = Calendar.current
+                if !calendar.isDate(currentMonth, equalTo: newDate, toGranularity: .month) {
+                    currentMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: newDate)) ?? currentMonth
+                }
+            }
         }
     }
     
@@ -200,8 +230,8 @@ struct CalendarView: View {
     
     /// Get the days in the month for display in the calendar
     /// - Parameter month: The month to get days for
-    /// - Returns: Array of optional dates (nil for placeholder days)
-    private func daysInMonth(for month: Date) -> [Date?] {
+    /// - Returns: Array of date options with index information
+    private func daysInMonth(for month: Date) -> [(index: Int, date: Date?)] {
         let calendar = Calendar.current
         
         // Get the first day of the month
@@ -216,17 +246,23 @@ struct CalendarView: View {
         let daysInMonth = calendar.range(of: .day, in: .month, for: firstDayOfMonth)!.count
         
         // Create array with empty slots for days from previous month
-        var days = Array(repeating: nil as Date?, count: daysToOffset)
+        var days: [(index: Int, date: Date?)] = []
+        
+        // Add empty days for previous month
+        for i in 0..<daysToOffset {
+            days.append((index: i, date: nil))
+        }
         
         // Add all days in the current month
         for day in 1...daysInMonth {
             let date = calendar.date(byAdding: .day, value: day - 1, to: firstDayOfMonth)!
-            days.append(date)
+            days.append((index: daysToOffset + day - 1, date: date))
         }
         
         // Add placeholder days to complete the grid (up to 42 cells total - 6 weeks)
-        while days.count < 42 {
-            days.append(nil)
+        let remainingDays = 42 - days.count
+        for i in 0..<remainingDays {
+            days.append((index: daysToOffset + daysInMonth + i, date: nil))
         }
         
         return days

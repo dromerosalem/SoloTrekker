@@ -29,8 +29,19 @@ class AppViewModel: ObservableObject {
     /// Navigate to a specific trip
     /// - Parameter trip: The trip to navigate to
     func navigateToTrip(_ trip: Trip) {
+        // First set the trip
         selectedTrip = trip
-        selectedTab = 1 // Navigate to trip detail tab
+        
+        // If the trip has a start date, select it
+        if let startDate = trip.startDate {
+            selectedDate = startDate
+        }
+        
+        // Use dispatch async to avoid potential state conflicts
+        DispatchQueue.main.async {
+            // Finally change the tab
+            self.selectedTab = 1 // Navigate to calendar tab
+        }
     }
     
     /// Navigate to a specific date within a trip
@@ -38,16 +49,28 @@ class AppViewModel: ObservableObject {
     ///   - trip: The trip to navigate to
     ///   - date: The date to select
     func navigateToDate(in trip: Trip, date: Date) {
+        // First set the trip
         selectedTrip = trip
+        
+        // Then set the date
         selectedDate = date
-        selectedTab = 2 // Navigate to calendar tab
+        
+        // Use dispatch async to avoid potential state conflicts
+        DispatchQueue.main.async {
+            // Finally change the tab
+            self.selectedTab = 1 // Navigate to calendar tab
+        }
     }
     
     /// Reset navigation state
     func resetNavigation() {
         selectedTrip = nil
         selectedDate = nil
-        selectedTab = 0 // Navigate to home tab
+        
+        // Use dispatch async to avoid potential state conflicts
+        DispatchQueue.main.async {
+            self.selectedTab = 0 // Navigate to home tab
+        }
     }
     
     // MARK: - User Preferences

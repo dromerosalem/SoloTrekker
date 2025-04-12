@@ -15,12 +15,14 @@ struct ContentView: View {
     
     // State for tab selection
     @State private var selectedTab = 0
+    @State private var homeViewKey = UUID() // Force HomeView recreation
     
     var body: some View {
         TabView(selection: $selectedTab) {
             // Home tab - Trip List
             NavigationView {
                 HomeView()
+                    .id(homeViewKey) // Force view recreation when key changes
                     .navigationTitle("My Trips")
                     .navigationBarItems(
                         trailing: Button(action: {
@@ -40,6 +42,7 @@ struct ContentView: View {
             NavigationView {
                 if let selectedTrip = appViewModel.selectedTrip {
                     CalendarView(trip: selectedTrip)
+                        .id("calendar-\(selectedTrip.id?.uuidString ?? UUID().uuidString)") // Force recreation when trip changes
                         .navigationTitle("Trip Calendar")
                 } else {
                     Text("Select a trip first")
@@ -112,6 +115,18 @@ struct ContentView: View {
         }
         .onChange(of: appViewModel.selectedTab) { oldValue, newValue in
             selectedTab = newValue
+            
+            // Important: When navigating back to the Trips tab, regenerate the HomeView
+            if newValue == 0 && oldValue != 0 {
+                // Force HomeView recreation when coming back to it
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    homeViewKey = UUID()
+                }
+            }
+        }
+        .onChange(of: selectedTab) { oldValue, newValue in
+            // Keep appViewModel in sync with selectedTab
+            appViewModel.selectedTab = newValue
         }
         .sheet(isPresented: $appViewModel.isAddingTrip) {
             AddTripView()

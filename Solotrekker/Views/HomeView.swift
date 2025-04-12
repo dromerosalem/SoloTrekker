@@ -107,17 +107,32 @@ struct HomeView: View {
     
     // List of trips
     var tripListView: some View {
-        List {
-            ForEach(filteredTrips) { trip in
-                TripCard(trip: trip)
-                    .onTapGesture {
-                        appViewModel.navigateToTrip(trip)
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                // Ensure each trip has a clear ID association
+                ForEach(filteredTrips, id: \.id) { trip in
+                    Button(action: {
+                        // Use direct navigation method instead of gesture
+                        print("Trip selected: \(trip.title ?? "Untitled")")
+                        appViewModel.selectedTrip = trip
+                        if let startDate = trip.startDate {
+                            appViewModel.selectedDate = startDate
+                        }
+                        // Set tab index directly rather than through view model
+                        // to reduce potential state conflicts
+                        DispatchQueue.main.async {
+                            appViewModel.selectedTab = 1
+                        }
+                    }) {
+                        TripCard(trip: trip)
+                            .id(trip.id?.uuidString ?? UUID().uuidString)
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(.horizontal)
             }
-            .onDelete(perform: deleteTrips)
+            .padding(.vertical)
         }
-        .listStyle(InsetGroupedListStyle())
     }
     
     /// Delete trips at the specified offsets
@@ -193,10 +208,11 @@ struct TripCard: View {
         let calendar = Calendar.current
         let numberOfDays = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0
         
-        return VStack(alignment: .trailing) {
+        return VStack(alignment: .trailing, spacing: 2) {
             Text("\(numberOfDays + 1) days")
                 .font(.headline)
             
+            // Show trip dates in a more detailed format
             Text(appViewModel.formatDate(startDate, style: .short))
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -209,7 +225,20 @@ struct TripCard: View {
         let progressValue = calculateProgress(startDate: startDate, endDate: endDate, currentDate: now)
         let status = getTripStatus(startDate: startDate, endDate: endDate, currentDate: now)
         
-        return VStack(alignment: .leading, spacing: 4) {
+        return VStack(alignment: .leading, spacing: 8) {
+            // Add start and end date information
+            HStack {
+                Text("From: \(appViewModel.formatDate(startDate, style: .medium))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Text("To: \(appViewModel.formatDate(endDate, style: .medium))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
             ProgressView(value: progressValue)
                 .progressViewStyle(LinearProgressViewStyle(tint: appViewModel.color(from: trip.colorHex)))
             
