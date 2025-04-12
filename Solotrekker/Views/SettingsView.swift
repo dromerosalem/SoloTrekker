@@ -61,7 +61,7 @@ struct SettingsView: View {
                         Text(currency).tag(currency)
                     }
                 }
-                .onChange(of: preferredCurrency) { newValue in
+                .onChange(of: preferredCurrency) { oldValue, newValue in
                     appViewModel.setPreferredCurrency(newValue)
                 }
                 
@@ -71,7 +71,7 @@ struct SettingsView: View {
                 }
                 
                 Toggle("Dark Mode", isOn: $useDarkMode)
-                    .onChange(of: useDarkMode) { newValue in
+                    .onChange(of: useDarkMode) { oldValue, newValue in
                         appViewModel.colorScheme = newValue ? .dark : .light
                     }
                 

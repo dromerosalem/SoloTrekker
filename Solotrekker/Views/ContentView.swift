@@ -110,7 +110,7 @@ struct ContentView: View {
             }
             .tag(4)
         }
-        .onChange(of: appViewModel.selectedTab) { newValue in
+        .onChange(of: appViewModel.selectedTab) { oldValue, newValue in
             selectedTab = newValue
         }
         .sheet(isPresented: $appViewModel.isAddingTrip) {
