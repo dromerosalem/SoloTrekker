@@ -1,0 +1,35 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1.  Keep Every File, Function, and Component Focused on One Thing
+A file should only do one job: a view, a model, a utility — never more. This keeps your code readable and modular. When you add a new feature later, you won’t need to unravel spaghetti.
+
+2.  Use Simple, Explicit, and Self-Documenting Code
+If someone else reads your code (even you in 2 months), they should understand it without comments. Name functions and variables based on what they do (e.g. addExpenseItem(), not doIt()). Prefer clarity over clever tricks.
+
+3.  Structure Code Around the Data Models
+Your data models (Trip, ItineraryItem, Expense, etc.) are the foundation. Build your logic around them. This ensures consistency and makes future features easy to plug in.
+
+4.  Write Everything With MVP + V1 + V2 in Mind
+Design your code and folders as if V2 is coming — because it is. Use folders and comments to plan for future features (e.g., // future: support for group trip roles).
+
+5.  Every Feature Should Work Without the Internet
+Make sure every screen has a graceful fallback if Firebase is unavailable. Use CoreData or UserDefaults to cache and sync later.
+
+6.  Never Hardcode Strings, Dates, or Colors
+Anything that might change later should be defined as a constant or configuration value. Define strings and colors in dedicated files like Constants.swift.
+
+7.  Test the UI and Logic Separately
+Keep views dumb and logic smart — test each in isolation. Views bind to ViewModels. Don’t mix logic into UI files for easier testing and reuse.
+
+8.  Avoid Tight Coupling — Prefer Loose Integration
+Components should not directly depend on each other unless necessary. Pass data through simple structs and use protocols to abstract services.
+
+9.  Sync Once, Show Always
+Pull Firebase data only when needed and cache locally for reuse. This saves read/write limits and improves speed and offline support.
+
+10. Document As You Go — Not After
+Leave a comment above every function explaining what it does in 1–2 sentences. Use // What this does: or // How this works: so future you understands immediately.
+
