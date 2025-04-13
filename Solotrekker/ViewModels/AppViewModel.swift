@@ -55,6 +55,23 @@ class AppViewModel: ObservableObject {
         }
     }
     
+    /// Navigate to calendar view for a specific trip
+    /// - Parameter trip: The trip to show in the calendar
+    func navigateToCalendar(for trip: Trip) {
+        // Set the selected trip
+        selectedTrip = trip
+        
+        // If no date is selected, use the trip's start date or current date
+        if selectedDate == nil {
+            selectedDate = trip.startDate ?? Date()
+        }
+        
+        // Navigate to the calendar tab
+        DispatchQueue.main.async {
+            self.selectedTab = 1 // Calendar tab index
+        }
+    }
+    
     /// Navigate to a specific date within a trip
     /// - Parameters:
     ///   - trip: The trip to navigate to

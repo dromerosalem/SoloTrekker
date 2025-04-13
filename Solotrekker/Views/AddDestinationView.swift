@@ -151,6 +151,16 @@ struct AddDestinationView: View {
         .onTapGesture {
             hideKeyboard()
         }
+        .onAppear {
+            // Add observer for dismissToCalendar notification
+            NotificationCenter.default.addObserver(forName: .dismissToCalendar, object: nil, queue: .main) { _ in
+                self.presentationMode.wrappedValue.dismiss()
+            }
+        }
+        .onDisappear {
+            // Remove observer when view disappears
+            NotificationCenter.default.removeObserver(self, name: .dismissToCalendar, object: nil)
+        }
     }
     
     /// Save the new destination

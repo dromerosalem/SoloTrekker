@@ -204,6 +204,27 @@ struct EditTripView: View {
                     DestinationsView(trip: trip)
                 }
             }
+            // Listen for the dismissToCalendar notification
+            .onAppear {
+                // Add notification observer
+                let notificationCenter = NotificationCenter.default
+                notificationCenter.addObserver(
+                    forName: .dismissToCalendar,
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    // Dismiss this view when notification is received
+                    dismissView()
+                }
+            }
+            .onDisappear {
+                // Remove the observer when view disappears
+                NotificationCenter.default.removeObserver(
+                    self,
+                    name: .dismissToCalendar,
+                    object: nil
+                )
+            }
             .onChange(of: title) { _, newValue in
                 if newValue.count > maxTitleLength {
                     title = String(newValue.prefix(maxTitleLength))

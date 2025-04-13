@@ -7,11 +7,15 @@
 import SwiftUI
 import CoreData
 
+// Note: dismissToCalendar notification name is defined in Notification+Extensions.swift
+
 /// View for displaying and managing trip destinations
 struct DestinationsView: View {
     // MARK: - Environment
     
     @Environment(\.managedObjectContext) private var viewContext
+    @Environment(\.presentationMode) private var presentationMode
+    @EnvironmentObject var appViewModel: AppViewModel
     
     // MARK: - Properties
     
@@ -25,40 +29,83 @@ struct DestinationsView: View {
     // MARK: - Body
     
     var body: some View {
-        Group {
-            if trip.destinationsArray.isEmpty {
-                VStack(spacing: 20) {
-                    Image(systemName: "map")
-                        .font(.system(size: 50))
-                        .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            // More subtle back to calendar button
+            HStack {
+                Button(action: {
+                    // Set the trip in the view model
+                    appViewModel.selectedTrip = trip
                     
-                    Text("No Destinations")
-                        .font(.headline)
-                    
-                    Text("Add destinations to organize different parts of your trip")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                    
-                    Button(action: { showingAddDestination = true }) {
-                        Label("Add a Destination", systemImage: "plus.circle.fill")
-                            .font(.headline)
-                            .padding()
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(10)
+                    // Ensure we have a selected date
+                    if appViewModel.selectedDate == nil {
+                        appViewModel.selectedDate = trip.startDate ?? Date()
                     }
+                    
+                    // Set calendar tab 
+                    appViewModel.selectedTab = 1
+                    
+                    // Post notification to dismiss all the way to calendar
+                    NotificationCenter.default.post(
+                        name: .dismissToCalendar,
+                        object: nil
+                    )
+                    
+                    // Dismiss this view
+                    presentationMode.wrappedValue.dismiss()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 16))
+                        Text("Back to Calendar")
+                            .font(.system(size: 16))
+                    }
+                    .foregroundColor(.blue)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
                 }
-                .padding()
-            } else {
-                List {
-                    ForEach(trip.destinationsArray) { destination in
-                        DestinationRow(destination: destination)
-                            .onTapGesture {
-                                selectedDestination = destination
-                            }
+                .padding(.leading, 8)
+                
+                Spacer()
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            
+            // Existing content
+            Group {
+                if trip.destinationsArray.isEmpty {
+                    VStack(spacing: 20) {
+                        Image(systemName: "map")
+                            .font(.system(size: 50))
+                            .foregroundColor(.secondary)
+                        
+                        Text("No Destinations")
+                            .font(.headline)
+                        
+                        Text("Add destinations to organize different parts of your trip")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        
+                        Button(action: { showingAddDestination = true }) {
+                            Label("Add a Destination", systemImage: "plus.circle.fill")
+                                .font(.headline)
+                                .padding()
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(10)
+                        }
                     }
-                    .onDelete(perform: deleteDestinations)
+                    .padding()
+                } else {
+                    List {
+                        ForEach(trip.destinationsArray) { destination in
+                            DestinationRow(destination: destination)
+                                .onTapGesture {
+                                    selectedDestination = destination
+                                }
+                        }
+                        .onDelete(perform: deleteDestinations)
+                    }
                 }
             }
         }
@@ -139,6 +186,7 @@ struct DestinationsView_Previews: PreviewProvider {
             if let firstTrip = trips?.first {
                 DestinationsView(trip: firstTrip)
                     .environment(\.managedObjectContext, context)
+                    .environmentObject(AppViewModel())
             } else {
                 Text("No preview data available")
             }

@@ -13,6 +13,8 @@ struct EditDestinationView: View {
     
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var presentationMode
+    @Environment(\.colorScheme) private var colorScheme
     
     // MARK: - Properties
     
@@ -29,6 +31,7 @@ struct EditDestinationView: View {
     /// Alert state
     @State private var showingAlert = false
     @State private var alertMessage = ""
+    @State private var alertTitle = "Error"
     
     // MARK: - Initialization
     
@@ -46,52 +49,67 @@ struct EditDestinationView: View {
     // MARK: - Body
     
     var body: some View {
-        Form {
-            // Basic Information
-            Section(header: Text("Basic Information")) {
-                TextField("Destination Name", text: $name)
+        NavigationView {
+            Form {
+                // Basic Information
+                Section(header: Text("Basic Information")) {
+                    TextField("Destination Name", text: $name)
+                    
+                    DatePicker("Start Date",
+                             selection: $startDate,
+                             displayedComponents: [.date])
+                    
+                    DatePicker("End Date",
+                             selection: $endDate,
+                             in: startDate...,
+                             displayedComponents: [.date])
+                }
                 
-                DatePicker("Start Date",
-                         selection: $startDate,
-                         displayedComponents: [.date])
+                // Color Selection
+                Section(header: Text("Color")) {
+                    ColorPicker("Destination Color", selection: $color)
+                }
                 
-                DatePicker("End Date",
-                         selection: $endDate,
-                         in: startDate...,
-                         displayedComponents: [.date])
-            }
-            
-            // Color Selection
-            Section(header: Text("Color")) {
-                ColorPicker("Destination Color", selection: $color)
-            }
-            
-            // Notes
-            Section(header: Text("Notes")) {
-                TextEditor(text: $notes)
-                    .frame(minHeight: 100)
-            }
-        }
-        .navigationTitle("Edit Destination")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    dismiss()
+                // Notes
+                Section(header: Text("Notes")) {
+                    TextEditor(text: $notes)
+                        .frame(minHeight: 100)
                 }
             }
-            
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
-                    saveDestination()
+            .navigationTitle("Edit Destination")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        saveDestination()
+                    }
                 }
             }
+            .alert(isPresented: $showingAlert) {
+                Alert(
+                    title: Text(alertTitle),
+                    message: Text(alertMessage),
+                    dismissButton: .default(Text("OK"))
+                )
+            }
+            .onAppear {
+                // Add observer for dismissToCalendar notification
+                NotificationCenter.default.addObserver(forName: .dismissToCalendar, object: nil, queue: .main) { _ in
+                    self.presentationMode.wrappedValue.dismiss()
+                }
+            }
+            .onDisappear {
+                // Remove observer when view disappears
+                NotificationCenter.default.removeObserver(self, name: .dismissToCalendar, object: nil)
+            }
         }
-        .alert("Error", isPresented: $showingAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(alertMessage)
-        }
+        .environment(\.colorScheme, colorScheme)
     }
     
     // MARK: - Methods
