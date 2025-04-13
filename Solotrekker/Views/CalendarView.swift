@@ -139,10 +139,13 @@ struct CalendarView: View {
                     // Get destination color for this date if it exists
                     let destinationColor = colorForDate(date)
                     
+                    // Consider a day to be in trip if it's either in the trip range OR has a destination color
+                    let isInTripDate = appViewModel.isDateInTrip(date, trip: trip) || destinationColor != nil
+                    
                     DayCell(
                         date: date,
                         isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate),
-                        isInTrip: appViewModel.isDateInTrip(date, trip: trip),
+                        isInTrip: isInTripDate,
                         hasItems: hasItineraryItems(for: date),
                         tripColor: trip.color,
                         destinationColor: destinationColor
@@ -358,13 +361,18 @@ struct CalendarView: View {
     
     // Determine the color for a specific date based on destinations
     private func colorForDate(_ date: Date) -> Color? {
+        let startOfDay = Calendar.current.startOfDay(for: date)
+        
         // Check if date falls within any destination's date range
         for destination in trip.destinationsArray {
-            if let startDate = destination.startDate, 
-               let endDate = destination.endDate,
-               date >= Calendar.current.startOfDay(for: startDate) && 
-               date <= Calendar.current.startOfDay(for: endDate) {
-                return destination.color
+            if let destStartDate = destination.startDate, 
+               let destEndDate = destination.endDate {
+                let destStartDay = Calendar.current.startOfDay(for: destStartDate)
+                let destEndDay = Calendar.current.startOfDay(for: destEndDate)
+                
+                if startOfDay >= destStartDay && startOfDay <= destEndDay {
+                    return destination.color
+                }
             }
         }
         // Return nil if no destination covers this date
@@ -404,19 +412,24 @@ struct DayCell: View {
     }
     
     var body: some View {
+        // Calculate the cell background color
+        let backgroundColor: Color = isInTrip 
+            ? (destinationColor ?? tripColor).opacity(0.5) 
+            : Color(UIColor.secondarySystemBackground)
+        
+        // Use a single ZStack with clear layering
         ZStack {
-            // Background for days in the trip
-            if isInTrip {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill((destinationColor ?? tripColor).opacity(0.2))
-            }
+            // Background with proper color
+            RoundedRectangle(cornerRadius: 10)
+                .fill(backgroundColor)
             
-            // Selection indicator
+            // Selection indicator as an overlay
             if isSelected {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(destinationColor ?? tripColor, lineWidth: 2)
             }
             
+            // Content
             VStack {
                 // Day number
                 Text(dayNumber)
@@ -437,9 +450,7 @@ struct DayCell: View {
             }
             .padding(8)
         }
-        .frame(height: 50)
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(10)
+        .frame(maxWidth: .infinity, minHeight: 50)
     }
 }
 

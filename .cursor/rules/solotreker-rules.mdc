@@ -3,6 +3,8 @@ description:
 globs: 
 alwaysApply: true
 ---
+FOCUS IN THE ASK ONLY DONT DO UNSOLICITED CHANGES
+
 1.  Keep Every File, Function, and Component Focused on One Thing
 A file should only do one job: a view, a model, a utility — never more. This keeps your code readable and modular. When you add a new feature later, you won’t need to unravel spaghetti.
 
