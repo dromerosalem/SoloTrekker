@@ -1,0 +1,4 @@
+module SoloTrekker {
+    header "SoloTrekker-Swift.h"
+    requires objc
+} 

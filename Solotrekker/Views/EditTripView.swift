@@ -27,6 +27,9 @@ struct EditTripView: View {
     @State private var currency: String
     @State private var selectedColor: String
     
+    // Add state for showing destinations view
+    @State private var showingDestinations = false
+    
     // Constants
     private let maxTitleLength = 50
     private let maxDestinationLength = 50
@@ -83,6 +86,22 @@ struct EditTripView: View {
                         TextField("Destination", text: $destination)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .padding(.bottom, 10)
+                        
+                        // Add Manage Destinations button
+                        Button(action: {
+                            showingDestinations = true
+                        }) {
+                            HStack {
+                                Image(systemName: "map")
+                                Text("Manage Multiple Destinations")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundColor(.blue)
+                            .cornerRadius(10)
+                        }
+                        .padding(.bottom, 10)
                         
                         Text("Start Date")
                         DatePicker("", selection: $startDate, displayedComponents: .date)
@@ -179,6 +198,12 @@ struct EditTripView: View {
                     dismissView()
                 }
             )
+            // Add sheet presentation for destinations
+            .sheet(isPresented: $showingDestinations) {
+                NavigationView {
+                    DestinationsView(trip: trip)
+                }
+            }
             .onChange(of: title) { _, newValue in
                 if newValue.count > maxTitleLength {
                     title = String(newValue.prefix(maxTitleLength))

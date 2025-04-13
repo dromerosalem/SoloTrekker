@@ -21,9 +21,8 @@ struct SettingsView: View {
     
     // Trip statistics
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)],
-        animation: .default)
-    private var trips: FetchedResults<Trip>
+        sortDescriptors: [NSSortDescriptor(keyPath: \Trip.startDate, ascending: true)]
+    ) private var trips: FetchedResults<Trip>
     
     // Computed properties for statistics
     private var tripCount: Int {
@@ -41,7 +40,8 @@ struct SettingsView: View {
     private var totalTripDays: Int {
         var total = 0
         for trip in trips {
-            guard let startDate = trip.startDate, let endDate = trip.endDate else { continue }
+            guard let startDate = trip.startDate,
+                  let endDate = trip.endDate else { continue }
             let days = Calendar.current.dateComponents([.day], from: startDate, to: endDate).day ?? 0
             total += days + 1 // +1 to include both start and end days
         }
@@ -61,7 +61,7 @@ struct SettingsView: View {
                         Text(currency).tag(currency)
                     }
                 }
-                .onChange(of: preferredCurrency) { oldValue, newValue in
+                .onChange(of: preferredCurrency) { _, newValue in
                     appViewModel.setPreferredCurrency(newValue)
                 }
                 
@@ -71,7 +71,7 @@ struct SettingsView: View {
                 }
                 
                 Toggle("Dark Mode", isOn: $useDarkMode)
-                    .onChange(of: useDarkMode) { oldValue, newValue in
+                    .onChange(of: useDarkMode) { _, newValue in
                         appViewModel.colorScheme = newValue ? .dark : .light
                     }
                 
@@ -99,7 +99,6 @@ struct SettingsView: View {
                 }
                 
                 Button(action: {
-                    // Contact support action (would send an email)
                     if let url = URL(string: "mailto:support@solotrekker.app") {
                         UIApplication.shared.open(url)
                     }
@@ -108,7 +107,6 @@ struct SettingsView: View {
                 }
                 
                 Button(action: {
-                    // Privacy policy action (would open a web page)
                     if let url = URL(string: "https://www.solotrekker.app/privacy") {
                         UIApplication.shared.open(url)
                     }
@@ -117,7 +115,6 @@ struct SettingsView: View {
                 }
                 
                 Button(action: {
-                    // Terms of service action (would open a web page)
                     if let url = URL(string: "https://www.solotrekker.app/terms") {
                         UIApplication.shared.open(url)
                     }
@@ -178,18 +175,6 @@ struct SettingsView: View {
             currentTrip.budget = 1500
             currentTrip.currency = "USD"
             currentTrip.colorHex = "#5856D6"
-            
-            // Future trip
-            let futureTrip = Trip(context: viewContext)
-            futureTrip.id = UUID()
-            futureTrip.title = "New Zealand Trek"
-            futureTrip.startDate = calendar.date(byAdding: .month, value: 2, to: now)
-            futureTrip.endDate = calendar.date(byAdding: .day, value: 14, to: futureTrip.startDate!)
-            futureTrip.destination = "Auckland, New Zealand"
-            futureTrip.notes = "Hiking, nature photography, and adventure sports"
-            futureTrip.budget = 3000
-            futureTrip.currency = "USD"
-            futureTrip.colorHex = "#34C759"
             
             // Save the context
             do {
