@@ -7,6 +7,15 @@
 import SwiftUI
 import CoreData
 
+/// Represents a single day in the calendar
+struct Day: Identifiable {
+    var date: Date
+    var isInCurrentMonth: Bool
+    var index: Int
+    
+    var id: Int { index }
+}
+
 /// Calendar view for trip planning
 struct CalendarView: View {
     // Trip being displayed
@@ -121,36 +130,34 @@ struct CalendarView: View {
             .background(Color(UIColor.secondarySystemBackground))
             
             // Calendar grid
-            let days = daysInMonth(for: currentMonth)
+            let days = getDays()
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 5) {
-                // Use explicit indices from our daysInMonth structure
                 ForEach(days, id: \.index) { day in
-                    if let date = day.date {
-                        DayCell(
-                            date: date,
-                            isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate),
-                            isInTrip: appViewModel.isDateInTrip(date, trip: trip),
-                            hasItems: hasItineraryItems(for: date),
-                            tripColor: appViewModel.color(from: trip.colorHex)
-                        )
-                        .id("day-\(day.index)") // Use the explicit index
-                        .onTapGesture {
-                            // Update both the local and app view model selected dates
-                            // This ensures proper synchronization between the calendar view and app state
-                            selectedDate = date
-                            appViewModel.selectedDate = date
-                            
-                            // Force refresh to ensure UI updates properly
-                            refreshItems()
-                        }
-                    } else {
-                        // Empty cell for days not in this month
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(height: 50)
-                            .id("empty-\(day.index)") // Use the explicit index
+                    let date = day.date
+                    
+                    // Get destination color for this date if it exists
+                    let destinationColor = colorForDate(date)
+                    
+                    DayCell(
+                        date: date,
+                        isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate),
+                        isInTrip: appViewModel.isDateInTrip(date, trip: trip),
+                        hasItems: hasItineraryItems(for: date),
+                        tripColor: trip.color,
+                        destinationColor: destinationColor
+                    )
+                    .id("day-\(day.index)") // Use the explicit index
+                    .onTapGesture {
+                        // Update both the local and app view model selected dates
+                        // This ensures proper synchronization between the calendar view and app state
+                        selectedDate = date
+                        appViewModel.selectedDate = date
+                        
+                        // Force refresh to ensure UI updates properly
+                        refreshItems()
                     }
+                    .opacity(day.isInCurrentMonth ? 1 : 0.3)
                 }
             }
             .padding(.horizontal, 5)
@@ -244,6 +251,18 @@ struct CalendarView: View {
             
             // Always refresh items when view appears
             refreshItems()
+            
+            // Listen for destination changes
+            NotificationCenter.default.addObserver(
+                forName: Notification.Name("DestinationAdded"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                // Trigger calendar refresh
+                withAnimation {
+                    self.refreshCalendar()
+                }
+            }
         }
         .onChange(of: appViewModel.selectedDate) { oldValue, newValue in
             if let newValue = newValue, !Calendar.current.isDate(selectedDate, inSameDayAs: newValue) {
@@ -298,41 +317,74 @@ struct CalendarView: View {
     /// Get the days in the month for display in the calendar
     /// - Parameter month: The month to get days for
     /// - Returns: Array of date options with index information
-    private func daysInMonth(for month: Date) -> [(index: Int, date: Date?)] {
-        let calendar = Calendar.current
+    private func getDays() -> [Day] {
+        var days = [Day]()
         
-        // Get the first day of the month
-        let components = calendar.dateComponents([.year, .month], from: month)
-        let firstDayOfMonth = calendar.date(from: components)!
+        // Previous month days
+        let firstDay = Calendar.current.firstWeekday
+        let firstDayOfMonth = firstDayOfMonth()
+        let weekday = Calendar.current.component(.weekday, from: firstDayOfMonth)
+        let daysToAdd = (weekday + 7 - firstDay) % 7
         
-        // Determine the first date to show (may be in the previous month)
-        let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth)
-        let daysToOffset = (firstWeekday - calendar.firstWeekday + 7) % 7
-        
-        // Get the range of days in the month
-        let daysInMonth = calendar.range(of: .day, in: .month, for: firstDayOfMonth)!.count
-        
-        // Create array with empty slots for days from previous month
-        var days: [(index: Int, date: Date?)] = []
-        
-        // Add empty days for previous month
-        for i in 0..<daysToOffset {
-            days.append((index: i, date: nil))
+        if daysToAdd > 0 {
+            for i in (1...daysToAdd).reversed() {
+                if let date = Calendar.current.date(byAdding: .day, value: -i, to: firstDayOfMonth) {
+                    days.append(Day(date: date, isInCurrentMonth: false, index: days.count))
+                }
+            }
         }
         
-        // Add all days in the current month
-        for day in 1...daysInMonth {
-            let date = calendar.date(byAdding: .day, value: day - 1, to: firstDayOfMonth)!
-            days.append((index: daysToOffset + day - 1, date: date))
+        // Current month days
+        let daysInMonth = Calendar.current.range(of: .day, in: .month, for: currentMonth)?.count ?? 0
+        for i in 1...daysInMonth {
+            if let date = Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: currentMonth), month: Calendar.current.component(.month, from: currentMonth), day: i)) {
+                days.append(Day(date: date, isInCurrentMonth: true, index: days.count))
+            }
         }
         
-        // Add placeholder days to complete the grid (up to 42 cells total - 6 weeks)
-        let remainingDays = 42 - days.count
-        for i in 0..<remainingDays {
-            days.append((index: daysToOffset + daysInMonth + i, date: nil))
+        // Next month days
+        let remainingDays = 42 - days.count // Always show 6 weeks
+        if remainingDays > 0 {
+            let lastDayOfMonth = Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: currentMonth), month: Calendar.current.component(.month, from: currentMonth), day: daysInMonth))!
+            for i in 1...remainingDays {
+                if let date = Calendar.current.date(byAdding: .day, value: i, to: lastDayOfMonth) {
+                    days.append(Day(date: date, isInCurrentMonth: false, index: days.count))
+                }
+            }
         }
         
         return days
+    }
+    
+    // Determine the color for a specific date based on destinations
+    private func colorForDate(_ date: Date) -> Color? {
+        // Check if date falls within any destination's date range
+        for destination in trip.destinationsArray {
+            if let startDate = destination.startDate, 
+               let endDate = destination.endDate,
+               date >= Calendar.current.startOfDay(for: startDate) && 
+               date <= Calendar.current.startOfDay(for: endDate) {
+                return destination.color
+            }
+        }
+        // Return nil if no destination covers this date
+        return nil
+    }
+    
+    private func firstDayOfMonth() -> Date {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month], from: currentMonth)
+        return calendar.date(from: components)!
+    }
+    
+    // Added method to force refresh of calendar display
+    private func refreshCalendar() {
+        // Simply re-setting selectedDate will refresh the calendar view
+        let tempDate = selectedDate
+        selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            selectedDate = tempDate
+        }
     }
 }
 
@@ -343,19 +395,26 @@ struct DayCell: View {
     let isInTrip: Bool
     let hasItems: Bool
     let tripColor: Color
+    let destinationColor: Color?
+    
+    private var dayNumber: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: date)
+    }
     
     var body: some View {
         ZStack {
             // Background for days in the trip
             if isInTrip {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(tripColor.opacity(0.2))
+                    .fill((destinationColor ?? tripColor).opacity(0.2))
             }
             
             // Selection indicator
             if isSelected {
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(tripColor, lineWidth: 2)
+                    .stroke(destinationColor ?? tripColor, lineWidth: 2)
             }
             
             VStack {
@@ -368,7 +427,7 @@ struct DayCell: View {
                 // Indicator for days with activities
                 if hasItems {
                     Circle()
-                        .fill(tripColor)
+                        .fill(destinationColor ?? tripColor)
                         .frame(width: 6, height: 6)
                 } else {
                     Circle()
@@ -381,13 +440,6 @@ struct DayCell: View {
         .frame(height: 50)
         .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(10)
-    }
-    
-    // Get the day number as string
-    private var dayNumber: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d"
-        return formatter.string(from: date)
     }
 }
 

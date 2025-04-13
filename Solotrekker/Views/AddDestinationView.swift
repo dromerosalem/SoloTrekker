@@ -170,6 +170,13 @@ struct AddDestinationView: View {
         // Save context
         do {
             try viewContext.save()
+            
+            // Update the selected view/tab to go to calendar after adding destination
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                appViewModel.selectedTab = 1  // Calendar tab
+                NotificationCenter.default.post(name: Notification.Name("DestinationAdded"), object: nil)
+            }
+            
             presentationMode.wrappedValue.dismiss()
         } catch {
             print("Error saving destination: \(error)")

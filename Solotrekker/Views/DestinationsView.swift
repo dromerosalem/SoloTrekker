@@ -25,14 +25,42 @@ struct DestinationsView: View {
     // MARK: - Body
     
     var body: some View {
-        List {
-            ForEach(trip.destinationsArray) { destination in
-                DestinationRow(destination: destination)
-                    .onTapGesture {
-                        selectedDestination = destination
+        Group {
+            if trip.destinationsArray.isEmpty {
+                VStack(spacing: 20) {
+                    Image(systemName: "map")
+                        .font(.system(size: 50))
+                        .foregroundColor(.secondary)
+                    
+                    Text("No Destinations")
+                        .font(.headline)
+                    
+                    Text("Add destinations to organize different parts of your trip")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    
+                    Button(action: { showingAddDestination = true }) {
+                        Label("Add a Destination", systemImage: "plus.circle.fill")
+                            .font(.headline)
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(10)
                     }
+                }
+                .padding()
+            } else {
+                List {
+                    ForEach(trip.destinationsArray) { destination in
+                        DestinationRow(destination: destination)
+                            .onTapGesture {
+                                selectedDestination = destination
+                            }
+                    }
+                    .onDelete(perform: deleteDestinations)
+                }
             }
-            .onDelete(perform: deleteDestinations)
         }
         .navigationTitle("Destinations")
         .toolbar {
