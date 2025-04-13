@@ -44,6 +44,26 @@ struct ContentView: View {
                     CalendarView(trip: selectedTrip)
                         .id("calendar-\(selectedTrip.id?.uuidString ?? UUID().uuidString)") // Force recreation when trip changes
                         .navigationTitle("Trip Calendar")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .principal) {
+                                VStack {
+                                    Text("Trip Calendar")
+                                        .font(.headline)
+                                    Text(selectedTrip.wrappedTitle)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button(action: {
+                                    appViewModel.isEditingTrip = true
+                                }) {
+                                    Image(systemName: "pencil.circle")
+                                        .font(.headline)
+                                }
+                            }
+                        }
                 } else {
                     Text("Select a trip first")
                         .font(.headline)
@@ -60,14 +80,26 @@ struct ContentView: View {
                 if let selectedTrip = appViewModel.selectedTrip {
                     ExpensesView(trip: selectedTrip)
                         .navigationTitle("Expenses")
-                        .navigationBarItems(
-                            trailing: Button(action: {
-                                appViewModel.isAddingExpense = true
-                            }) {
-                                Image(systemName: "plus")
-                                    .font(.headline)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .principal) {
+                                VStack {
+                                    Text("Expenses")
+                                        .font(.headline)
+                                    Text(selectedTrip.wrappedTitle)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
                             }
-                        )
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button(action: {
+                                    appViewModel.isAddingExpense = true
+                                }) {
+                                    Image(systemName: "plus")
+                                        .font(.headline)
+                                }
+                            }
+                        }
                 } else {
                     Text("Select a trip first")
                         .font(.headline)
@@ -128,6 +160,14 @@ struct ContentView: View {
             // Keep appViewModel in sync with selectedTab
             appViewModel.selectedTab = newValue
         }
+        .onChange(of: appViewModel.isEditingTrip) { oldValue, newValue in
+            if !newValue && oldValue {
+                // Force HomeView and other views to refresh when trip editing is completed
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    homeViewKey = UUID()
+                }
+            }
+        }
         .sheet(isPresented: $appViewModel.isAddingTrip) {
             AddTripView()
         }
@@ -139,6 +179,12 @@ struct ContentView: View {
         .sheet(isPresented: $appViewModel.isAddingDocument) {
             if let trip = appViewModel.selectedTrip {
                 AddDocumentView(trip: trip)
+            }
+        }
+        .sheet(isPresented: $appViewModel.isEditingTrip) {
+            if let trip = appViewModel.selectedTrip {
+                EditTripView(trip: trip)
+                    .environment(\.managedObjectContext, viewContext)
             }
         }
         // Apply preferred color scheme

@@ -260,6 +260,7 @@ struct ExpensesView: View {
         .padding()
         .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(12)
+        .navigationBarTitleDisplayMode(.inline)
     }
     
     /// Delete an expense

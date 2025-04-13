@@ -19,6 +19,7 @@ class AppViewModel: ObservableObject {
     @Published var isAddingExpense: Bool = false
     @Published var isAddingDocument: Bool = false
     @Published var documentPickerIsPresented: Bool = false
+    @Published var isEditingTrip: Bool = false
     
     // User preferences
     @Published var currency: String = UserDefaults.standard.string(forKey: "preferredCurrency") ?? "USD"
