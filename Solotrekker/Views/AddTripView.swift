@@ -237,6 +237,7 @@ struct AddTripView: View {
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 appViewModel.selectedTrip = newTrip
+                appViewModel.selectedDate = startDate
                 appViewModel.selectedTab = 1
             }
         } catch {
