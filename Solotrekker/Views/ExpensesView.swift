@@ -48,11 +48,27 @@ struct ExpensesView: View {
     }
     
     private var paidExpenses: Double {
-        expenses.filter { $0.paymentStatus == "paid" }.reduce(0) { $0 + $1.amount }
+        expenses.reduce(0) { total, expense in
+            if expense.paymentStatus == "paid" {
+                return total + expense.amount
+            } else if expense.paymentStatus == "partial" {
+                return total + expense.paidAmount
+            } else {
+                return total
+            }
+        }
     }
     
     private var dueExpenses: Double {
-        expenses.filter { $0.paymentStatus == "due" }.reduce(0) { $0 + $1.amount }
+        expenses.reduce(0) { total, expense in
+            if expense.paymentStatus == "due" {
+                return total + expense.amount
+            } else if expense.paymentStatus == "partial" {
+                return total + (expense.amount - expense.paidAmount)
+            } else {
+                return total
+            }
+        }
     }
     
     private var partiallyPaidExpenses: Double {
@@ -521,6 +537,8 @@ struct EditExpenseView: View {
     @State private var category: String
     @State private var paymentStatus: String
     @State private var currency: String
+    @State private var paidAmount: String
+    @State private var dueDate: Date
     
     // Available expense categories
     let categories = [
@@ -551,6 +569,47 @@ struct EditExpenseView: View {
         _category = State(initialValue: expense.category ?? "other")
         _paymentStatus = State(initialValue: expense.paymentStatus ?? "due")
         _currency = State(initialValue: expense.currency ?? "USD")
+        
+        // Initialize paid amount - default to half the total if newly set to partial
+        if expense.paymentStatus == "partial" {
+            _paidAmount = State(initialValue: String(format: "%.2f", expense.paidAmount))
+        } else {
+            _paidAmount = State(initialValue: String(format: "%.2f", expense.amount / 2))
+        }
+        
+        // Initialize due date - default to two weeks from now if not set
+        _dueDate = State(initialValue: expense.dueDate ?? Calendar.current.date(byAdding: .day, value: 14, to: Date()) ?? Date())
+    }
+    
+    // Returns true if the expense is partially paid
+    private var isPartiallyPaid: Bool {
+        paymentStatus == "partial"
+    }
+    
+    // Computed property for the amount that is still due
+    private var dueAmount: Double {
+        let totalAmount = Double(amount) ?? 0
+        let paid = Double(paidAmount) ?? 0
+        return max(0, totalAmount - paid)
+    }
+    
+    // Formatted representation of the due amount
+    private var formattedDueAmount: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currency
+        
+        return formatter.string(from: NSNumber(value: dueAmount)) ?? "$\(dueAmount)"
+    }
+    
+    // Validation for paid amount - must be less than total amount
+    private var isPaidAmountValid: Bool {
+        guard isPartiallyPaid else { return true }
+        
+        let totalAmount = Double(amount) ?? 0
+        let paid = Double(paidAmount) ?? 0
+        
+        return paid < totalAmount && paid > 0
     }
     
     var body: some View {
@@ -588,6 +647,34 @@ struct EditExpenseView: View {
                     }
                 }
                 
+                // Partially paid details - only show if payment status is "partial"
+                if isPartiallyPaid {
+                    Section(header: Text("Partially Paid Details")) {
+                        HStack {
+                            TextField("Amount Paid", text: $paidAmount)
+                                .keyboardType(.decimalPad)
+                            
+                            Text(currency)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if !isPaidAmountValid {
+                            Text("Paid amount must be less than total and greater than zero")
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+                        
+                        HStack {
+                            Text("Amount Due: ")
+                            Spacer()
+                            Text(formattedDueAmount)
+                                .foregroundColor(.orange)
+                        }
+                        
+                        DatePicker("Due Date", selection: $dueDate, displayedComponents: [.date])
+                    }
+                }
+                
                 // Notes section
                 Section(header: Text("Notes")) {
                     TextEditor(text: $notes)
@@ -602,7 +689,7 @@ struct EditExpenseView: View {
                 trailing: Button("Save") {
                     updateExpense()
                 }
-                .disabled(title.isEmpty || Double(amount) == nil)
+                .disabled(title.isEmpty || Double(amount) == nil || (isPartiallyPaid && !isPaidAmountValid))
             )
         }
     }
@@ -616,6 +703,8 @@ struct EditExpenseView: View {
         let originalCategory = expense.category
         let originalStatus = expense.paymentStatus
         let originalCurrency = expense.currency
+        let originalPaidAmount = expense.paidAmount
+        let originalDueDate = expense.dueDate
         
         // Update expense entity with form values
         expense.title = title
@@ -631,6 +720,22 @@ struct EditExpenseView: View {
         expense.paymentStatus = paymentStatus
         expense.currency = currency
         
+        // Only set paid amount and due date for partially paid expenses
+        if paymentStatus == "partial" {
+            if let paidValue = Double(paidAmount) {
+                expense.paidAmount = paidValue
+            }
+            expense.dueDate = dueDate
+        } else if paymentStatus == "paid" {
+            // If marked as fully paid, set paid amount to total
+            expense.paidAmount = expense.amount
+            expense.dueDate = nil
+        } else {
+            // If marked as due, clear paid amount
+            expense.paidAmount = 0
+            expense.dueDate = nil
+        }
+        
         // Save the context
         do {
             try viewContext.save()
@@ -643,6 +748,8 @@ struct EditExpenseView: View {
             if originalCategory != expense.category { print("Category changed: \(originalCategory ?? "") -> \(expense.category ?? "")") }
             if originalStatus != expense.paymentStatus { print("Status changed: \(originalStatus ?? "") -> \(expense.paymentStatus ?? "")") }
             if originalCurrency != expense.currency { print("Currency changed: \(originalCurrency ?? "") -> \(expense.currency ?? "")") }
+            if originalPaidAmount != expense.paidAmount { print("Paid amount changed: \(originalPaidAmount) -> \(expense.paidAmount)") }
+            if originalDueDate != expense.dueDate { print("Due date changed") }
             
             // Post a notification to force refresh of expense views
             NotificationCenter.default.post(name: .expenseDataChanged, object: nil)

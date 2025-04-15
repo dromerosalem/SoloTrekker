@@ -206,7 +206,9 @@ public class Expense: NSManagedObject, Identifiable {
     @NSManaged public var category: String?
     @NSManaged public var currency: String?
     @NSManaged public var date: Date?
+    @NSManaged public var dueDate: Date?
     @NSManaged public var notes: String?
+    @NSManaged public var paidAmount: Double
     @NSManaged public var paymentStatus: String?
     @NSManaged public var title: String?
     @NSManaged public var trip: Trip?
@@ -220,6 +222,7 @@ public class Expense: NSManagedObject, Identifiable {
     public override func awakeFromInsert() {
         super.awakeFromInsert()
         id = UUID()
+        paidAmount = 0.0
     }
     
     // MARK: - Additional methods needed for ExpenseRow
@@ -231,6 +234,44 @@ public class Expense: NSManagedObject, Identifiable {
         formatter.currencyCode = wrappedCurrency
         
         return formatter.string(from: NSNumber(value: amount)) ?? "$\(amount)"
+    }
+    
+    /// Returns the amount that is still due to be paid
+    public var dueAmount: Double {
+        if isPartiallyPaid {
+            return amount - paidAmount
+        } else if isDue {
+            return amount
+        } else {
+            return 0.0
+        }
+    }
+    
+    /// Returns the formatted paid amount with currency symbol
+    public var formattedPaidAmount: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = wrappedCurrency
+        
+        return formatter.string(from: NSNumber(value: paidAmount)) ?? "$\(paidAmount)"
+    }
+    
+    /// Returns the formatted due amount with currency symbol
+    public var formattedDueAmount: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = wrappedCurrency
+        
+        return formatter.string(from: NSNumber(value: dueAmount)) ?? "$\(dueAmount)"
+    }
+    
+    /// Returns a formatted string for the due date
+    public var formattedDueDate: String {
+        guard let dueDate = dueDate else { return "No due date" }
+        
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: dueDate)
     }
     
     /// Check if the expense is paid

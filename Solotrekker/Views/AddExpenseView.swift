@@ -25,6 +25,8 @@ struct AddExpenseView: View {
     @State private var category = "other"
     @State private var paymentStatus = "due"
     @State private var currency: String
+    @State private var paidAmount = ""
+    @State private var dueDate = Calendar.current.date(byAdding: .day, value: 14, to: Date()) ?? Date()
     
     // Available expense categories
     let categories = [
@@ -45,7 +47,39 @@ struct AddExpenseView: View {
     
     // Input validation
     private var isFormValid: Bool {
-        !title.isEmpty && Double(amount) != nil
+        if !title.isEmpty && Double(amount) != nil {
+            // Additional validation for partially paid expenses
+            if paymentStatus == "partial" {
+                if let paidValue = Double(paidAmount), let totalValue = Double(amount) {
+                    return paidValue < totalValue && paidValue > 0
+                } else {
+                    return false
+                }
+            }
+            return true
+        }
+        return false
+    }
+    
+    // Returns true if the expense is partially paid
+    private var isPartiallyPaid: Bool {
+        paymentStatus == "partial"
+    }
+    
+    // Computed property for the amount that is still due
+    private var dueAmount: Double {
+        let totalAmount = Double(amount) ?? 0
+        let paid = Double(paidAmount) ?? 0
+        return max(0, totalAmount - paid)
+    }
+    
+    // Formatted representation of the due amount
+    private var formattedDueAmount: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currency
+        
+        return formatter.string(from: NSNumber(value: dueAmount)) ?? "$\(dueAmount)"
     }
     
     // Initialize with trip and currency
@@ -64,6 +98,14 @@ struct AddExpenseView: View {
                     HStack {
                         TextField("Amount", text: $amount)
                             .keyboardType(.decimalPad)
+                            .onChange(of: amount) { oldValue, newValue in
+                                // When amount changes, update paid amount to be half of total by default
+                                if isPartiallyPaid && paidAmount.isEmpty {
+                                    if let totalValue = Double(newValue) {
+                                        paidAmount = String(format: "%.2f", totalValue / 2)
+                                    }
+                                }
+                            }
                         
                         Picker("Currency", selection: $currency) {
                             ForEach(appViewModel.currencyOptions, id: \.self) { currency in
@@ -86,6 +128,42 @@ struct AddExpenseView: View {
                         ForEach(paymentStatusOptions.keys.sorted(), id: \.self) { key in
                             Text(paymentStatusOptions[key] ?? key).tag(key)
                         }
+                    }
+                    .onChange(of: paymentStatus) { oldValue, newValue in
+                        // Set initial paid amount to half of total when switching to partially paid
+                        if newValue == "partial" && oldValue != "partial" {
+                            if let totalValue = Double(amount) {
+                                paidAmount = String(format: "%.2f", totalValue / 2)
+                            }
+                        }
+                    }
+                }
+                
+                // Partially paid details - only show if payment status is "partial"
+                if isPartiallyPaid {
+                    Section(header: Text("Partially Paid Details")) {
+                        HStack {
+                            TextField("Amount Paid", text: $paidAmount)
+                                .keyboardType(.decimalPad)
+                            
+                            Text(currency)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if !isFormValid && !paidAmount.isEmpty {
+                            Text("Paid amount must be less than total and greater than zero")
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+                        
+                        HStack {
+                            Text("Amount Due: ")
+                            Spacer()
+                            Text(formattedDueAmount)
+                                .foregroundColor(.orange)
+                        }
+                        
+                        DatePicker("Due Date", selection: $dueDate, displayedComponents: [.date])
                     }
                 }
                 
@@ -126,6 +204,22 @@ struct AddExpenseView: View {
         newExpense.paymentStatus = paymentStatus
         newExpense.currency = currency
         newExpense.trip = trip
+        
+        // Handle partially paid status
+        if paymentStatus == "partial" {
+            if let paidValue = Double(paidAmount) {
+                newExpense.paidAmount = paidValue
+            }
+            newExpense.dueDate = dueDate
+        } else if paymentStatus == "paid" {
+            // If marked as fully paid, set paid amount to total
+            newExpense.paidAmount = newExpense.amount
+            newExpense.dueDate = nil
+        } else {
+            // If marked as due, clear paid amount
+            newExpense.paidAmount = 0
+            newExpense.dueDate = nil
+        }
         
         // Save the context
         do {
