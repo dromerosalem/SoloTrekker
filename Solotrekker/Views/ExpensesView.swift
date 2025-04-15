@@ -165,25 +165,78 @@ struct ExpensesView: View {
         .onChange(of: selectedExpense) { oldValue, newValue in
             // When selected expense is set to nil (sheet dismissed), refresh view
             if newValue == nil && oldValue != nil {
-                // No need to directly access fetchRequest - just create a new UUID to force view refresh
-                // This will cause the view to re-evaluate its state and refresh the FetchRequest
-                DispatchQueue.main.async {
-                    // Small delay to ensure context changes are saved
+                // Force a refresh to ensure changes are reflected
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.refreshView()
                 }
             }
+        }
+        .onAppear {
+            // Register for expense data change notifications
+            NotificationCenter.default.addObserver(
+                forName: .expenseDataChanged,
+                object: nil,
+                queue: .main
+            ) { _ in
+                // Force an immediate refresh when expense data changes
+                self.refreshView()
+            }
+        }
+        .onDisappear {
+            // Remove notification observer
+            NotificationCenter.default.removeObserver(
+                self,
+                name: .expenseDataChanged,
+                object: nil
+            )
         }
     }
     
     // Helper method to refresh the view
     private func refreshView() {
-        // Create a temporary state variable and update it
-        // This will trigger a view refresh without needing to access fetchRequest directly
-        let tempPredicate = NSPredicate(format: "trip == %@", trip)
-        // Force the view to update by using a small delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            // This is just to trigger a view refresh - we don't need to do anything with the predicate
-            _ = tempPredicate
+        print("Refreshing ExpensesView...")
+        
+        // Create a UUID to track this specific refresh operation
+        let refreshID = UUID()
+        
+        // Force context to process all changes
+        viewContext.refreshAllObjects()
+        
+        // Schedule a series of state changes to force a thorough UI refresh
+        DispatchQueue.main.async {
+            print("Step 1: Initial refresh (\(refreshID))")
+            
+            // Save the original search text value
+            let originalSearch = self.searchText
+            
+            // Toggle filter option instead of search text to avoid UI flicker
+            let originalFilter = self.filterOption
+            self.filterOption = "temp_filter_value"
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                print("Step 2: Restore filter (\(refreshID))")
+                self.filterOption = originalFilter
+                
+                // Change sort option to force another refresh
+                let originalSort = self.sortOption
+                self.sortOption = "temp_sort_value"
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    print("Step 3: Restore sort (\(refreshID))")
+                    self.sortOption = originalSort
+                    
+                    // Ensure search text is restored to its original value 
+                    self.searchText = originalSearch
+                    
+                    // Create one last state change
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        print("Step 4: Final refresh (\(refreshID))")
+                        
+                        // This line doesn't actually do anything but forces one last update
+                        let _ = self.filteredExpenses.count
+                    }
+                }
+            }
         }
     }
     
@@ -319,6 +372,7 @@ struct ExpensesView: View {
                     .onTapGesture {
                         selectedExpense = expense
                     }
+                    .id("expense-\(expense.id?.uuidString ?? "")-\(expense.amount)-\(expense.paymentStatus ?? "")-\(expense.title ?? "")-\(expense.category ?? "")-\(expense.date?.timeIntervalSince1970 ?? 0)-\(expense.currency ?? "")")
                     .contextMenu {
                         Button {
                             toggleExpenseStatus(expense)
@@ -375,6 +429,14 @@ struct ExpensesView: View {
                 expense.paymentStatus = "paid"
             }
             saveContext()
+            
+            // Post notification to refresh UI
+            NotificationCenter.default.post(name: .expenseDataChanged, object: nil)
+            
+            // Also manually trigger a refresh
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.refreshView()
+            }
         }
     }
     
@@ -547,6 +609,14 @@ struct EditExpenseView: View {
     
     /// Save changes to the expense
     private func updateExpense() {
+        // Keep track of original values to detect changes
+        let originalTitle = expense.title
+        let originalAmount = expense.amount
+        let originalDate = expense.date
+        let originalCategory = expense.category
+        let originalStatus = expense.paymentStatus
+        let originalCurrency = expense.currency
+        
         // Update expense entity with form values
         expense.title = title
         
@@ -564,10 +634,41 @@ struct EditExpenseView: View {
         // Save the context
         do {
             try viewContext.save()
-            presentationMode.wrappedValue.dismiss()
+            
+            // Log changes for debugging
+            print("Updated expense: \(title)")
+            if originalTitle != title { print("Title changed: \(originalTitle ?? "") -> \(title)") }
+            if originalAmount != expense.amount { print("Amount changed: \(originalAmount) -> \(expense.amount)") }
+            if originalDate != expense.date { print("Date changed") }
+            if originalCategory != expense.category { print("Category changed: \(originalCategory ?? "") -> \(expense.category ?? "")") }
+            if originalStatus != expense.paymentStatus { print("Status changed: \(originalStatus ?? "") -> \(expense.paymentStatus ?? "")") }
+            if originalCurrency != expense.currency { print("Currency changed: \(originalCurrency ?? "") -> \(expense.currency ?? "")") }
+            
+            // Post a notification to force refresh of expense views
+            NotificationCenter.default.post(name: .expenseDataChanged, object: nil)
+            
+            // Ensure the view dismisses after saving changes
+            DispatchQueue.main.async {
+                self.presentationMode.wrappedValue.dismiss()
+                
+                // Force a more aggressive refresh by posting multiple notifications
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    NotificationCenter.default.post(name: .expenseDataChanged, object: nil)
+                    
+                    // Add one more notification for good measure
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        NotificationCenter.default.post(name: .expenseDataChanged, object: nil)
+                    }
+                }
+            }
         } catch {
             let nsError = error as NSError
             print("Error updating expense: \(nsError)")
         }
     }
+}
+
+// Add a notification name for expense data changes
+extension Notification.Name {
+    static let expenseDataChanged = Notification.Name("expenseDataChanged")
 } 
